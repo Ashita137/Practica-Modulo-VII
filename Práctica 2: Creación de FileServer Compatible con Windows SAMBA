@@ -1,0 +1,52 @@
+# 1. Verificar la fecha del sistema
+date
+
+# 2. Instalar los paquetes de Samba y el cliente
+sudo dnf install -y samba samba-client
+
+# 3. Habilitar e iniciar los servicios de Samba (smb y nmb)
+sudo systemctl enable --now smb nmb
+
+# 4. Crear el grupo y el usuario para la autenticación en Samba
+sudo groupadd grupo_samba
+sudo useradd -G grupo_samba usuario_samba
+sudo smbpasswd -a usuario_samba
+
+# 5. Crear el directorio compartido y los 100 archivos requeridos (Adrian001 a Adrian100)
+sudo mkdir -p /samba/compartido
+sudo touch /samba/compartido/adrian{001..100}.txt
+ls /samba/compartido
+
+# 6. Configurar la propiedad, los permisos y los contextos de seguridad SELinux
+sudo chown -R :grupo_samba /samba/compartido
+sudo chmod -R 775 /samba/compartido
+sudo chcon -R -t samba_share_t /samba/compartido
+sudo setsebool -P samba_export_all_rw on
+
+# 7. Configurar el archivo de compartición de Samba
+sudo nano /etc/samba/smb.conf
+# (Agrega al final del archivo el siguiente bloque):
+# [ArchivosAdrian]
+# path = /samba/compartido
+# valid users = @grupo_samba
+# browsable = yes
+# writable = yes
+# guest ok = no
+# read only = no
+
+# 8. Reiniciar el servicio de Samba para aplicar los cambios
+sudo systemctl restart smb
+
+# 9. Configurar el cortafuegos para permitir el tráfico de Samba
+sudo firewall-cmd --permanent --add-service=samba
+sudo firewall-cmd --reload
+
+# 10. Consultar la dirección IP del servidor y verificar un archivo creado
+ip a
+
+Windows
+Conectar a una unidad de red
+\\ipservidor\recursocompartido
+Usuario + Contraseña
+
+cat /samba/compartido/adrian099.txt
