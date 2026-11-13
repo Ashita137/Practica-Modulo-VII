@@ -1,0 +1,99 @@
+// Máquina 1 - RHEL 10
+
+date
+sudo hostnamectl set-hostname dc1.so3.inet
+ip a
+sudo nano /etc/hosts
+192.168.126.130 dc1.os3.inet dc1
+
+sudo setenforce 0
+sudo systemctl disable --now smb nmb winbind
+
+sudo dnf update -y
+sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm -y
+sudo dnf config-manager --set-enabled codeready-builder-for-rhel-10-x86_64-rpms
+
+sudo dnf install -y wget tar gcc make python3-devel \
+  flex bison gdb git keyutils-libs-devel \
+  libacl-devel libattr-devel libblkid-devel \
+  libxml2-devel libxslt-devel \
+  openldap-devel pam-devel popt-devel \
+  readline-devel zlib-devel systemd-devel \
+  lmdb-devel jansson-devel gpgme-devel \
+  libarchive-devel libicu-devel \
+  perl-ExtUtils-MakeMaker perl-Parse-Yapp perl-Test-Simple \
+  perl-FindBin perl-lib perl-English \
+  rpcgen libtirpc-devel gnutls-devel \
+  python3-cryptography python3-dns python3-markdown \
+  bind-utils krb5-workstation
+
+cd ~
+wget https://download.samba.org/pub/samba/stable/samba-4.21.1.tar.gz     // omite si ya tienes el archivo
+tar -zxvf samba-4.21.1.tar.gz
+cd samba-4.21.1/
+./configure --prefix=/usr/local/samba --enable-fhs --with-systemd --with-ads --with-ldap
+make -j2
+sudo make install
+
+sudo useradd -m lanegracubana
+sudo passwd lanegracubana          // escribe: 20261078
+
+sudo rm -f /usr/local/samba/etc/samba/smb.conf
+
+// Valores a escribir:
+// Realm: SO3.INET
+// Domain: SO3
+// Server Role: dc
+// DNS backend: SAMBA_INTERNAL
+// DNS Forwarder IP address: 8.8.8.8
+// Administrator password: Password1078-
+
+sudo nano /etc/resolv.conf
+// Dejar solo estas dos líneas:
+nameserver 127.0.0.1
+nameserver 8.8.8.8
+
+sudo cp /usr/local/samba/var/lib/samba/private/krb5.conf /etc/krb5.conf
+
+
+sudo nano /etc/systemd/system/samba-ad-dc.service
+// Pegar esto:
+[Unit]
+Description=Samba Active Directory Domain Controller
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/samba/sbin/samba --foreground --no-process-group
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now samba-ad-dc
+
+sudo firewall-cmd --permanent --add-service={samba-dc,dns,kerberos,ldap,ldaps}
+sudo firewall-cmd --reload
+
+host -t SRV _ldap._tcp.so3.inet
+
+kinit administrator@SO3.INET       // clave: Password1078-
+
+sudo /usr/local/samba/bin/samba-tool domain passwordsettings set --complexity=off --min-pwd-length=8 --history-length=0 --min-pwd-age=0 --max-pwd-age=0
+sudo /usr/local/samba/bin/samba-tool user create lanegracubana 20261078
+
+// Máquina 2 - Windows
+date
+
+// Cambiar el DNS del adaptador a 192.168.126.130
+// (Panel de control → Adaptador de red → Propiedades → IPv4 → DNS preferido)
+
+ping so3.inet
+Agregar el dominio so3.inet
+Usuario + Contraseña
+
+// Después del reinicio: Otro usuario → SO3\lanegracubana / 20261078
+whoami
+
+// Máquina 1 - RHEL 10
+sudo /usr/local/samba/bin/samba-tool computer list
