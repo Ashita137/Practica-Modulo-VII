@@ -1,0 +1,67 @@
+MAQUINA 1
+# 1. Comprobar la fecha del sistema
+date
+
+# 2. Instalar el servidor NFS 
+sudo dnf install -y nfs-utils
+
+# 3. Crear el directorio compartido para OS3
+sudo mkdir -p /var/nfs/os3
+cd /var/nfs/os3
+
+# 4. Crear los 100 archivos requeridos dentro del directorio
+sudo touch Adrian{001..100}.txt
+ls
+
+# 5. Volver al directorio personal y ajustar permisos del directorio compartido
+cd ~
+sudo chown nobody:nobody /var/nfs/os3
+sudo chmod 755 /var/nfs/os3
+
+# 6. Configurar el archivo de exportaciones NFS
+sudo nano /etc/exports
+# (Agregar la siguiente línea dentro del archivo y guardar):
+# /var/nfs/os3 192.168.122.0/24(rw,sync,no_subtree_check)
+
+# 7. Configurar el cortafuegos (Firewalld) para permitir servicios NFS
+sudo firewall-cmd --permanent --add-service={nfs,mountd,rpc-bind}
+sudo firewall-cmd --reload
+
+# 8. Habilitar, iniciar y verificar el estado del servicio NFS
+sudo systemctl enable --now nfs-server
+sudo systemctl status nfs-server
+
+# 9. Aplicar y exportar los directorios compartidos
+sudo exportfs -arv
+
+MAQUINA 2
+# 1. Instalar las utilidades de NFS en el cliente Red Hat
+sudo dnf install -y nfs-utils
+
+# 2. Crear el punto de montaje local en el cliente
+sudo mkdir -p /mnt/so3_client
+
+# 3. Montar manualmente el directorio compartido desde el servidor 
+sudo mount -t nfs 192.168.122.143:/var/nfs/os3 /mnt/so3_client
+
+# 4. Verificar visualmente que los archivos se muestran correctamente
+ls -l /mnt/so3_client
+
+# 5. Configurar el montaje automático permanente al arrancar el sistema
+sudo nano /etc/fstab
+# (Agrega la siguiente línea al final del archivo, guarda y sal):
+# 192.168.122.143:/var/nfs/os3 /mnt/so3_client nfs defaults 0 0
+
+# 6. Probar la configuración del fstab montando todos los sistemas de archivos
+sudo mount -a
+
+# 7. Reiniciar la máquina virtual cliente para comprobar el automontaje
+sudo reboot
+
+# --- DESPUÉS DE QUE EL SISTEMA VUELVA A ENCENDER ---
+
+# 8. Verificar que el almacenamiento esté montado mediante df
+df -h
+
+# 9. Comprobar que los archivos siguen accesibles tras el reinicio
+ls -l /mnt/so3_client
